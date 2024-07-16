@@ -4,6 +4,8 @@ from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.chrome.service import Service
 from webdriver_manager.chrome import ChromeDriverManager
+
+from core_api import get_core_price
 from utils import get_push_date
 
 validator_url = 'https://stake.coredao.org/validator/0x7c706ca44a28fdd25761250961276bd61d5aa87b'
@@ -56,10 +58,13 @@ def get_validator_data():
 
 def get_daily_report() -> str:
     current_time = get_push_date()
+    core_price_usd = get_core_price()
     staked_core_amount, staked_btc_amount = get_summary_delegate_count()
     staked_core_count, reward_rate, stated_count = get_validator_data()
     summary_msg = f'''
 {current_time} core report:
+
+latest core price: {core_price_usd} USD
 
 total BTC staked: {staked_btc_amount}
 total CORE stated: {staked_core_amount}

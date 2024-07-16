@@ -2,6 +2,7 @@
 
 > get below information from https://stake.coredao.org and push with telegram bot
 
+- core price in usd
 - total BTC staked
 - total CORE stated
 - validator staked
