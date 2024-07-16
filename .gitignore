@@ -1,0 +1,7 @@
+.idea/
+tests/
+venv/
+__pycache__/
+*.pyc
+src/config.py
+```
