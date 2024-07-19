@@ -1,5 +1,5 @@
 from tg_api import telegram_notify
-from src.fetch_data import get_daily_report
+from fetch_data import get_daily_report
 
 
 def main():
