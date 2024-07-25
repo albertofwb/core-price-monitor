@@ -8,7 +8,7 @@ from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from concurrent.futures import ThreadPoolExecutor
-from core_api import get_core_price
+from core_api import get_core_price, convert_usd_to_cny
 from config import BROWSER_TIMEOUT_SECONDS
 from utils import get_push_date
 from utils import get_logger
@@ -16,6 +16,7 @@ from utils import get_logger
 logger = get_logger()
 
 validator_url = 'https://stake.coredao.org/validator/0x7c706ca44a28fdd25761250961276bd61d5aa87b'
+
 
 def setup_driver():
     options = Options()
@@ -30,19 +31,19 @@ def setup_driver():
     return webdriver.Chrome(service=Service(ChromeDriverManager().install()), options=options)
 
 
-def get_summary_delegate_count(driver):
+def _get_summary_delegate_count(driver, timeout_seconds: int):
     logger.info("begin fetch summary info")
     driver.get('https://stake.coredao.org')
     try:
         delegate_core_xpath = '//*[@id="container-with-scrollbar"]/div/div/div/div[2]/div[1]/section/div[1]/div[2]/span[1]'
-        staked_core_element = WebDriverWait(driver, BROWSER_TIMEOUT_SECONDS).until(
+        staked_core_element = WebDriverWait(driver, timeout_seconds).until(
             EC.presence_of_element_located((By.XPATH, delegate_core_xpath))
         )
         staked_core_amount = staked_core_element.text
         logger.info("staked_core_amount: %s", staked_core_amount)
 
         delegate_btc_xpath = '//*[@id="container-with-scrollbar"]/div/div/div/div[2]/div[2]/section/div[1]/div[2]/span[1]'
-        staked_btc_element = WebDriverWait(driver, BROWSER_TIMEOUT_SECONDS).until(
+        staked_btc_element = WebDriverWait(driver, timeout_seconds).until(
             EC.presence_of_element_located((By.XPATH, delegate_btc_xpath))
         )
         staked_btc_amount = staked_btc_element.text
@@ -53,26 +54,26 @@ def get_summary_delegate_count(driver):
         return None, None
 
 
-def _get_validator_data(driver):
+def _get_validator_data(driver, timeout_seconds):
     logger.info("begin fetch validator info")
     driver.get(validator_url)
 
     delegate_xpath = '//*[@id="container-with-scrollbar"]/div/div/div/div[1]/section/div/div[1]/div/div[2]/div/div[1]/div/span'
-    staked_btc_element = WebDriverWait(driver, BROWSER_TIMEOUT_SECONDS).until(
+    staked_btc_element = WebDriverWait(driver, timeout_seconds).until(
         EC.presence_of_element_located((By.XPATH, delegate_xpath))
     )
     staked_core_count = staked_btc_element.text
     logger.info("staked_core_count: %s", staked_core_count)
 
     reward_rate_xpath = '//*[@id="container-with-scrollbar"]/div/div/div/div[1]/section/div/div[4]/div/div[2]/div/div/div/span'
-    reward_rate_element = WebDriverWait(driver, BROWSER_TIMEOUT_SECONDS).until(
+    reward_rate_element = WebDriverWait(driver, timeout_seconds).until(
         EC.presence_of_element_located((By.XPATH, reward_rate_xpath))
     )
     reward_rate = reward_rate_element.text
     logger.info("reward_rate: %s", reward_rate)
 
     stated_count_xpath = '//*[@id="container-with-scrollbar"]/div/div/div/div[1]/section/div/div[2]/div/div[2]/div[1]/div[1]'
-    stated_count_element = WebDriverWait(driver, BROWSER_TIMEOUT_SECONDS).until(
+    stated_count_element = WebDriverWait(driver, timeout_seconds).until(
         EC.presence_of_element_located((By.XPATH, stated_count_xpath))
     )
     realtime_staked = stated_count_element.text
@@ -81,16 +82,29 @@ def _get_validator_data(driver):
 
 
 def get_validator_data(driver):
-    x, y, z = _get_validator_data(driver)
+    x, y, z = _get_validator_data(driver, BROWSER_TIMEOUT_SECONDS)
+    count = 1
     while x == y == z == '0':
-        logger.info("retry fetch validator info")
-        time.sleep(1)
-        x, y, z = _get_validator_data(driver)
+        logger.info(f"retry {count} fetch validator info")
+        time.sleep(count)
+        x, y, z = _get_validator_data(driver, BROWSER_TIMEOUT_SECONDS+count)
+        count += 1
     return x, y, z
+
+
+def get_summary_delegate_count(driver):
+    x, y = _get_summary_delegate_count(driver, BROWSER_TIMEOUT_SECONDS)
+    count = 1
+    while x == y == '0':
+        logger.info(f"retry {count} fetch summary info")
+        time.sleep(1)
+        x, y = _get_summary_delegate_count(driver, BROWSER_TIMEOUT_SECONDS+count)
+        count += 1
+    return x, y
+
 
 def get_daily_report() -> str:
     current_time = get_push_date()
-
     with ThreadPoolExecutor(max_workers=3) as executor:
         summary_driver = setup_driver()
         validator_driver = setup_driver()
@@ -99,17 +113,17 @@ def get_daily_report() -> str:
         summary_future = executor.submit(get_summary_delegate_count, summary_driver)
         validator_future = executor.submit(get_validator_data, validator_driver)
 
-        core_price_usd = price_future.result()
+        core_price_usd, cny_rate = price_future.result()
         total_core, total_btc = summary_future.result()
         validator_core, reward_rate, realtime_staked = validator_future.result()
 
         summary_driver.quit()
         validator_driver.quit()
-
+    cny_price = float(core_price_usd) * cny_rate
     summary_msg = f'''
 {current_time} core report:
 
-latest core price: {core_price_usd} USD
+latest core price: {core_price_usd} USD ( {cny_price:.2f} CNY)
 
 total BTC staked: {total_btc}
 total CORE stated: {total_core}
