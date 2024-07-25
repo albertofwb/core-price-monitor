@@ -1,3 +1,5 @@
+import time
+
 from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.chrome.service import Service
@@ -51,7 +53,7 @@ def get_summary_delegate_count(driver):
         return None, None
 
 
-def get_validator_data(driver):
+def _get_validator_data(driver):
     logger.info("begin fetch validator info")
     driver.get(validator_url)
 
@@ -77,6 +79,14 @@ def get_validator_data(driver):
     logger.info("realtime_staked: %s", realtime_staked)
     return staked_core_count, reward_rate, realtime_staked
 
+
+def get_validator_data(driver):
+    x, y, z = _get_validator_data(driver)
+    while x == y == z == '0':
+        logger.info("retry fetch validator info")
+        time.sleep(1)
+        x, y, z = _get_validator_data(driver)
+    return x, y, z
 
 def get_daily_report() -> str:
     current_time = get_push_date()
