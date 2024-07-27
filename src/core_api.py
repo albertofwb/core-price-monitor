@@ -17,9 +17,10 @@ def get_core_price():
     price_url = "https://openapi.coredao.org/api?module=stats&action=coreprice&apikey=" + CORE_API_KEY
     response_dict = requests.get(price_url).json()
     result = response_dict.get("result")
-    core_usd = result.get("coreusd")
-    print(f"Core Price in USD: {core_usd}")
-    return core_usd, convert_usd_to_cny()
+    core_usd = float(result.get("coreusd"))
+    cny_rate = convert_usd_to_cny()
+    cny_price = core_usd * cny_rate
+    return core_usd, cny_price
 
 
 if __name__ == '__main__':

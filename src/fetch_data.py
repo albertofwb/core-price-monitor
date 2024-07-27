@@ -1,3 +1,4 @@
+import sys
 import time
 
 from selenium import webdriver
@@ -14,8 +15,6 @@ from utils import get_push_date
 from utils import get_logger
 
 logger = get_logger()
-
-validator_url = 'https://stake.coredao.org/validator/0x7c706ca44a28fdd25761250961276bd61d5aa87b'
 
 
 def setup_driver():
@@ -56,6 +55,7 @@ def _get_summary_delegate_count(driver, timeout_seconds: int):
 
 def _get_validator_data(driver, timeout_seconds):
     logger.info("begin fetch validator info")
+    validator_url = 'https://stake.coredao.org/validator/0x7c706ca44a28fdd25761250961276bd61d5aa87b'
     driver.get(validator_url)
 
     delegate_xpath = '//*[@id="container-with-scrollbar"]/div/div/div/div[1]/section/div/div[1]/div/div[2]/div/div[1]/div/span'
@@ -113,12 +113,9 @@ def get_daily_report() -> str:
         price_future = executor.submit(get_core_price)
         summary_future = executor.submit(get_summary_delegate_count)
         validator_future = executor.submit(get_validator_data)
-
-        core_price_usd, cny_rate = price_future.result()
+        core_price_usd, cny_price = price_future.result()
         total_core, total_btc = summary_future.result()
         validator_core, reward_rate, realtime_staked = validator_future.result()
-
-    cny_price = float(core_price_usd) * cny_rate
     summary_msg = f'''
 {current_time} core report:
 
@@ -133,5 +130,34 @@ validator reward rate: {reward_rate}%
     return summary_msg
 
 
+def handle_commandline():
+    import sys
+    if len(sys.argv) == 1:
+        return
+    if sys.argv[1] == '-h':
+        print("Usage: python fetch_data.py [-p] [-r] [-b]")
+        print("Default fetch data from https://stake.coredao.org and push to telegram.\n")
+        print("Options:")
+        print("-p: get core price")
+        print("-r: get validator data")
+        print("-b: get summary delegate count")
+    for arg in sys.argv[1:]:
+        if arg == '-p':
+            usd, cny_price = get_core_price()
+            print(f"latest core price: {usd} USD ({cny_price:.2f} CNY)")
+        if arg == '-r':
+            driver = setup_driver()
+            x, y, z = get_validator_data(driver)
+            print(x, y, z)
+        if arg == '-b':
+            driver = setup_driver()
+            x, y = get_summary_delegate_count(driver)
+            print(x, y)
+    sys.exit(0)
+
+
 if __name__ == '__main__':
-    logger.info(get_daily_report())
+    handle_commandline()
+    # msg = get_daily_report()
+    # print(msg)
+    # telegram_notify(msg)
